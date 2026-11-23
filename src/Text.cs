@@ -17,6 +17,8 @@ internal static class Text
 
     public static string Mode(bool on) => on ? "Area painting on" : "Area painting off";
     public static string Way(bool shortest) => shortest ? "Short way between corners" : "Long way around the planet";
+    public const string FixLevelsShort = "fixing locked levels";
+    public static string FixLevels(bool on) => on ? "Locked terrain levels are lowered to the foundation" : "Locked terrain levels are left as they are";
     public static string Paused(bool paused) => paused ? "Area painting paused" : "Area painting resumed";
     public static string Selected(int columns, int rows, int count) => $"Selected: {columns} × {rows} ({count} tiles)";
     public static string Painting(int done, int total, bool paused) => $"Painting: {done}/{total} ({(total > 0 ? done * 100 / total : 0)}%)" + (paused ? " (paused)" : "");

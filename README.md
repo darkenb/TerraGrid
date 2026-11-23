@@ -16,6 +16,7 @@ The cursor shows the size of the area (columns × rows and the tile count) befor
 | Ctrl+P | Go the short way or the long way around the planet between the two corners |
 | Ctrl+Shift+P | Pause or resume the painting in progress |
 | Ctrl+Shift+D | Cancel the painting in progress |
+| Ctrl+L | Fix locked levels on or off (see below) |
 
 All keys can be changed in the config file (`bug.dsp.terragrid.cfg`).
 
@@ -34,6 +35,7 @@ All keys can be changed in the config file (`bug.dsp.terragrid.cfg`).
 |---|---|---|
 | `BlockSize` | 12 | Areas are painted in blocks of this many tiles per side, one block per frame. Larger is faster, smaller keeps each frame lighter. Restore uses at most 10. |
 | `ShowPendingTiles` | true | Mark tiles still to be painted with blue squares. |
+| `FixLockedLevels` | false | On planets that build by height, foundation once laid a level higher (for example on a hilltop) stays a step above the foundation around it, and painting over it, with this mod or the game's brush, does not bring it down. When on, area painting lowers such spots to the new foundation. Leave it off where you built terraces on purpose. The cursor shows "fixing locked levels" while it is on. |
 
 ## Compatibility
 

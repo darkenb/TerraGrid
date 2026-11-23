@@ -35,6 +35,7 @@ internal sealed class PaintJob
             int removed = Blocks[i].RemoveAll(newer.Contains);
             if (removed == 0) continue;
             Total -= removed;
+            PendingTiles.Forget(Blocks[i]);
             if (Blocks[i].Count == 0) { Blocks.RemoveAt(i); Centers.RemoveAt(i); Brushes.RemoveAt(i); }
             else Centers[i] = GameReform.Center(Blocks[i], out _);
         }
@@ -94,6 +95,7 @@ internal sealed class PaintJob
         Player player = GameMain.mainPlayer;
         if (GameMain.data == null || player == null) { Stop(false, null); return; }
         PendingTiles.Draw(job.Factory.planet, job.Blocks);
+        PlanetRefresh.Flush(false);
         if (GameMain.isPaused || Paused) return;
         BuildTool_Reform? tool = player.controller?.actionBuild?.reformTool;
         if (tool == null || !ReferenceEquals(player.factory, job.Factory) || !ReferenceEquals(tool.factory, job.Factory))
@@ -112,7 +114,8 @@ internal sealed class PaintJob
             // The game may commit a block before throwing, so it leaves the list first and is never painted twice.
             List<Vector3> block = job.Blocks[next]; Brush brush = job.Brushes[next];
             job.Blocks.RemoveAt(next); job.Centers.RemoveAt(next); job.Brushes.RemoveAt(next);
-            if (!GameReform.Apply(tool, brush, block)) { Stop(true, null); return; }
+            PendingTiles.Forget(block);
+            if (!PlanetRefresh.Defer(() => GameReform.Apply(tool, brush, block))) { Stop(true, null); return; }
             job.Done += block.Count;
             if (job.Blocks.Count == 0) Stop(true, job.Done > block.Count ? Text.Complete(job.Done) : null);
         }
@@ -126,6 +129,8 @@ internal sealed class PaintJob
     {
         Current = null; Paused = false;
         PendingTiles.Clear();
+        PlanetRefresh.Flush(true);
+        if (LockedLevels.Released > 0) { Plugin.Log?.LogInfo($"Locked terrain levels released: {LockedLevels.Released} points"); LockedLevels.Released = 0; }
         if (notify) GameMain.gameScenario?.NotifyOnDoReformOpt(2);
         if (message != null) UIRealtimeTip.Popup(message);
     }

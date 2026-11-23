@@ -56,6 +56,7 @@ internal static class AreaTool
 
         string text = _corner.HasValue ? Text.Selected(Area.ColumnCount, Area.RowCount, count) : Text.SelectStart;
         if (!ShortWay) text += " — " + Text.LongPath;
+        if (LockedLevels.Enabled) text += " — " + Text.FixLevelsShort;
         if (PaintJob.Current is { } job) text = Text.Painting(job.Done, job.Total, PaintJob.Paused) + "\n" + text;
         tool.actionBuild.model.cursorText = text;
         UICursor.SetCursor(ECursor.Reform);

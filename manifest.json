@@ -1,6 +1,6 @@
 {
     "name": "BUG_TerraGrid",
-    "version_number": "1.0.0",
+    "version_number": "1.0.2",
     "website_url": "https://github.com/darkenb/TerraGrid",
     "description": "Lay foundation over a whole rectangle: pick two corners, it is painted block by block as you walk. Works on planets of any size.",
     "dependencies": [

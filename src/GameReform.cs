@@ -21,6 +21,9 @@ internal static class GameReform
     private static readonly MethodInfo Flatten = AccessTools.Method(typeof(BuildTool_Reform), "DoFlattenExecute");
     private static readonly MethodInfo Restore = AccessTools.Method(typeof(BuildTool_Reform), "DoRestoreExecute");
     private static readonly FieldInfo Pit = AccessTools.Field(typeof(BuildTool_Reform), "removeBasePitRuinId");
+    // Called once per tile: delegates instead of reflection, which allocated an argument array and boxed on every call.
+    private static readonly Action<BuildTool_Reform, Vector3> PrepareCall = AccessTools.MethodDelegate<Action<BuildTool_Reform, Vector3>>(Prepare);
+    private static readonly AccessTools.FieldRef<BuildTool_Reform, int> PitRef = AccessTools.FieldRefAccess<BuildTool_Reform, int>(Pit);
     private static readonly FieldInfo Line = AccessTools.Field(typeof(BuildTool_Reform), "lineDrawingMode");
     private static readonly FieldInfo Package = AccessTools.Field(typeof(BuildTool), "tmpPackage");
     private static readonly MethodInfo HandCount = AccessTools.PropertySetter(typeof(Player), nameof(Player.inhandItemCount));
@@ -44,7 +47,7 @@ internal static class GameReform
                 foreach (Vector3 point in block)
                 {
                     Snap(tool, point);
-                    if ((int)Pit.GetValue(tool) != 0) return Text.PitInSelection;
+                    if (PitRef(tool) != 0) return Text.PitInSelection;
                     if (tool.cursorIndices[0] < 0) continue;
                     count++;
                     if (brush.Mode == 1)
@@ -98,7 +101,7 @@ internal static class GameReform
         foreach (Vector3 point in block)
         {
             Snap(tool, point);
-            if ((int)Pit.GetValue(tool) != 0) { UIRealtimeTip.Popup(Text.PitInSelection); return false; }
+            if (PitRef(tool) != 0) { UIRealtimeTip.Popup(Text.PitInSelection); return false; }
             if (tool.cursorIndices[0] < 0) continue;
             indices.Add(tool.cursorIndices[0]);
             for (int i = 0; i < tool.cursorPointCount; i++) points.Add(tool.cursorPoints[i]);
@@ -121,6 +124,9 @@ internal static class GameReform
             TopUp(player, brush.Item.ID, tool.cursorPointCount - player.inhandItemCount);
             if (NativeCount(player, brush.Item.ID) + player.inhandItemCount < tool.cursorPointCount)
             { UIRealtimeTip.Popup(Text.LackOfItem, true, 1); return false; }
+            // After the item check, so a refused block leaves its terrain as it was; released points change the soil cost.
+            if (LockedLevels.Release(tool.planet, tool.cursorPoints, tool.cursorPointCount, tool.reformCenterPoint) > 0)
+            { cost = 0; gain = 0; Compute(tool, radius, ref cost, ref gain); }
             CopyPackage(tool);
             int sandNeed = tool.GetNeedSandCountByInc(brush.Item.ID, tool.cursorPointCount, cost, gain);
             if (GameMain.data.history.HasFeatureKey(1100001) && GameMain.sandboxToolsEnabled) sandNeed = 0;
@@ -231,7 +237,7 @@ internal static class GameReform
     private static void Snap(BuildTool_Reform tool, Vector3 point)
     {
         tool.cursorIndices[0] = -1;
-        Prepare.Invoke(tool, new object[] { point });
+        PrepareCall(tool, point);
     }
 
     /// <summary>Hide a different item held in hand, so native code neither counts nor consumes it as foundation</summary>

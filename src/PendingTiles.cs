@@ -9,43 +9,63 @@ namespace BUG_TerraGrid;
 internal static class PendingTiles
 {
     private static readonly Color Tint = new(0.35f, 0.85f, 1f);
-    private static Mesh? _mesh;
+    // One mesh per block, built once: rebuilding one mesh of every remaining tile several times a second cost seconds of
+    // frame time on large areas. Keyed by the block's list (reference equality).
+    private static readonly Dictionary<List<Vector3>, Mesh> Meshes = new();
+    private const int BuildsPerFrame = 32;
     private static Material? _material;
     private static bool _noShader;
     /// <summary>Config: draw the pending blocks at all</summary>
     internal static bool Enabled { get; set; } = true;
-    private static int _shownBlocks = -1;
-    private static float _builtAt;
 
-    /// <summary>Draw <paramref name="blocks"/> this frame; the mesh is rebuilt at most 4 times a second while blocks are painted</summary>
+    /// <summary>Draw <paramref name="blocks"/> this frame, building at most <see cref="BuildsPerFrame"/> new block meshes</summary>
+    // shortcut: one draw call per remaining block; merge blocks into larger meshes if planet-sized jobs show draw-call cost.
     internal static void Draw(PlanetData planet, List<List<Vector3>> blocks)
     {
         if (!Enabled || blocks.Count == 0 || planet != GameMain.localPlanet || planet.data == null || !Ready()) return;
-        if (_mesh == null || (_shownBlocks != blocks.Count && Time.unscaledTime - _builtAt > 0.25f))
-        {
-            var vertices = new List<Vector3>(); var triangles = new List<int>();
-            float floor = planet.realRadius + 0.2f, spacing = 2f * Mathf.PI * planet.realRadius / (planet.factory.platformSystem.segment * 5f);
-            // On the future foundation surface, or just above higher terrain so it is never buried.
-            Build(blocks, spacing * 0.42f, p => Math.Max(planet.data.QueryModifiedHeight(p), floor) + 0.15f, vertices, triangles);
-            _mesh ??= new Mesh { indexFormat = IndexFormat.UInt32 };
-            _mesh.Clear();
-            _mesh.SetVertices(vertices);
-            var colors = new Color[vertices.Count];
-            for (int i = 0; i < colors.Length; i++) colors[i] = Color.white;
-            _mesh.colors = colors;
-            _mesh.SetTriangles(triangles, 0);
-            _mesh.RecalculateBounds();
-            _shownBlocks = blocks.Count; _builtAt = Time.unscaledTime;
-        }
         _material!.color = new Color(Tint.r, Tint.g, Tint.b, 0.3f + 0.15f * Mathf.Sin(Time.unscaledTime * 4f));
-        Graphics.DrawMesh(_mesh, Matrix4x4.identity, _material, 0, null, 0, null, ShadowCastingMode.Off, false);
+        int built = 0;
+        foreach (List<Vector3> block in blocks)
+        {
+            if (!Meshes.TryGetValue(block, out Mesh? mesh))
+            {
+                if (block.Count == 0 || built++ >= BuildsPerFrame) continue;
+                mesh = BuildMesh(planet, block);
+                Meshes[block] = mesh;
+            }
+            Graphics.DrawMesh(mesh, Matrix4x4.identity, _material, 0, null, 0, null, ShadowCastingMode.Off, false);
+        }
     }
 
-    /// <summary>Forget the mesh once the job ends</summary>
+    private static Mesh BuildMesh(PlanetData planet, List<Vector3> block)
+    {
+        var vertices = new List<Vector3>(block.Count * 4); var triangles = new List<int>(block.Count * 6);
+        float floor = planet.realRadius + 0.2f, spacing = 2f * Mathf.PI * planet.realRadius / (planet.factory.platformSystem.segment * 5f);
+        // On the future foundation surface, or just above higher terrain so it is never buried.
+        Build(new List<List<Vector3>> { block }, spacing * 0.42f, p => Math.Max(planet.data.QueryModifiedHeight(p), floor) + 0.15f, vertices, triangles);
+        var mesh = new Mesh { indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
+        mesh.SetVertices(vertices);
+        var colors = new Color[vertices.Count];
+        for (int i = 0; i < colors.Length; i++) colors[i] = Color.white;
+        mesh.colors = colors;
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    /// <summary>Drop the mesh of a block that was painted or lost tiles</summary>
+    internal static void Forget(List<Vector3> block)
+    {
+        if (!Meshes.TryGetValue(block, out Mesh? mesh)) return;
+        Meshes.Remove(block);
+        UnityEngine.Object.Destroy(mesh);
+    }
+
+    /// <summary>Forget all meshes once the job ends</summary>
     internal static void Clear()
     {
-        if (_mesh != null) UnityEngine.Object.Destroy(_mesh);
-        _mesh = null; _shownBlocks = -1;
+        foreach (Mesh mesh in Meshes.Values) UnityEngine.Object.Destroy(mesh);
+        Meshes.Clear();
     }
 
     private static bool Ready()
